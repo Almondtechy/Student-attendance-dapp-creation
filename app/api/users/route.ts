@@ -1,6 +1,13 @@
-import { prisma } from "@/lib/prisma";
-
 export async function GET() {
-    const users = await prisma.user.findMany();
-    return Response.json(users);
+    try {
+        const { prisma } = await import("@/lib/prisma");
+        const users = await prisma.user.findMany();
+        return Response.json(users);
+    } catch (error) {
+        console.error("Failed to fetch users:", error);
+        return Response.json(
+            { error: "Database not available. Make sure DATABASE_URL is set and prisma generate has been run." },
+            { status: 503 }
+        );
+    }
 }
