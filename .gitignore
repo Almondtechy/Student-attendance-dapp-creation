@@ -10,7 +10,11 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/foundry.lock# testing
 /coverage
 
 # next.js
