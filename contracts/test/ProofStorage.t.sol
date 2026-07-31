@@ -20,6 +20,7 @@ contract ProofStorageTest is Test {
         address indexed marker
     );
     event InstructorSet(address indexed instructor, bool status);
+    event AdminTransferred(address indexed previousAdmin, address indexed newAdmin);
 
     function setUp() public {
         vm.prank(admin);
@@ -215,6 +216,57 @@ contract ProofStorageTest is Test {
         bytes32[] memory records = proofStorage.getStudentRecords(stranger);
         assertEq(records.length, 0);
         assertEq(proofStorage.getStudentRecordCount(stranger), 0);
+    }
+
+    // --- Admin Transfer ---
+
+    function test_TransferAdmin() public {
+        address newAdmin = address(5);
+
+        vm.prank(admin);
+        vm.expectEmit(true, true, false, false);
+        emit AdminTransferred(admin, newAdmin);
+        proofStorage.transferAdmin(newAdmin);
+
+        assertEq(proofStorage.admin(), newAdmin);
+
+        // Old admin can no longer perform admin actions
+        vm.prank(admin);
+        vm.expectRevert("Only admin");
+        proofStorage.setInstructor(instructor, true);
+
+        // New admin can perform admin actions
+        vm.prank(newAdmin);
+        proofStorage.setInstructor(instructor, true);
+        assertTrue(proofStorage.instructors(instructor));
+    }
+
+    function test_TransferAdmin_OldAdminStillInstructor() public {
+        address newAdmin = address(5);
+
+        vm.prank(admin);
+        proofStorage.transferAdmin(newAdmin);
+
+        // Original admin was an instructor at deploy time and should still be
+        assertTrue(proofStorage.instructors(admin));
+    }
+
+    function test_RevertTransferAdmin_NotAdmin() public {
+        vm.prank(stranger);
+        vm.expectRevert("Only admin");
+        proofStorage.transferAdmin(address(5));
+    }
+
+    function test_RevertTransferAdmin_ZeroAddress() public {
+        vm.prank(admin);
+        vm.expectRevert("Zero address");
+        proofStorage.transferAdmin(address(0));
+    }
+
+    function test_RevertTransferAdmin_AlreadyAdmin() public {
+        vm.prank(admin);
+        vm.expectRevert("Already admin");
+        proofStorage.transferAdmin(admin);
     }
 
     // --- Fuzz Tests ---
