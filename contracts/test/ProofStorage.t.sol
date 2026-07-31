@@ -304,4 +304,28 @@ contract ProofStorageTest is Test {
         assertTrue(proofStorage.verifyProof(hash));
         assertEq(proofStorage.getStudentRecordCount(caller), 1);
     }
+
+    function testFuzz_TransferAdmin(address newAdmin) public {
+        vm.assume(newAdmin != address(0));
+        vm.assume(newAdmin != admin);
+
+        vm.prank(admin);
+        proofStorage.transferAdmin(newAdmin);
+
+        assertEq(proofStorage.admin(), newAdmin);
+
+        // Old admin loses privileges
+        vm.prank(admin);
+        vm.expectRevert("Only admin");
+        proofStorage.setInstructor(instructor, true);
+
+        // New admin has full privileges
+        vm.startPrank(newAdmin);
+        proofStorage.setInstructor(instructor, true);
+        assertTrue(proofStorage.instructors(instructor));
+        // New admin can also mark attendance
+        bytes32 hash = keccak256(abi.encodePacked(student, "FUZZ", block.timestamp));
+        proofStorage.markAttendance(student, "FUZZ", hash);
+        assertTrue(proofStorage.verifyProof(hash));
+    }
 }
