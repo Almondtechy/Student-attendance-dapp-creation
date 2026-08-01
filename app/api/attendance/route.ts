@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import { attestProofOnChain } from "@/lib/proof";
 import { verifySignedRequest, WALLET_REGEX } from "@/lib/auth";
 import { toAttendanceJson } from "@/lib/attendance";
+import { attendanceLimiter } from "@/lib/rateLimit";
 
 /** True when `error` is a Prisma P2002 (unique constraint violation). */
 function isUniqueConstraintError(error: unknown): boolean {
@@ -56,6 +57,17 @@ export async function POST(request: Request) {
   const check = verifySignedRequest(wallet, message, signature, "Attendance request");
   if (!check.ok) {
     return Response.json({ error: check.error }, { status: check.status });
+  }
+
+  // Per-wallet rate limit: cap how often one wallet can hit this endpoint so
+  // a spammer can't drain the owner's gas on repeated on-chain attestations.
+  // Applied AFTER signature verification so a spammer with a victim's address
+  // can't exhaust a wallet it doesn't own (they'd need a valid signature).
+  if (!attendanceLimiter.check(wallet)) {
+    return Response.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
+    );
   }
 
   try {

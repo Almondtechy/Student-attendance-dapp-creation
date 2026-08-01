@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ethers } from "ethers";
 import { POST, GET } from "../route";
 
-const { prismaMock, attestMock } = vi.hoisted(() => ({
+const { prismaMock, attestMock, limiterMock } = vi.hoisted(() => ({
   prismaMock: {
     attendance: {
       findMany: vi.fn(),
@@ -12,10 +12,12 @@ const { prismaMock, attestMock } = vi.hoisted(() => ({
     },
   },
   attestMock: vi.fn(),
+  limiterMock: { check: vi.fn(() => true) },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/proof", () => ({ attestProofOnChain: attestMock }));
+vi.mock("@/lib/rateLimit", () => ({ attendanceLimiter: limiterMock }));
 
 const WALLET = ethers.Wallet.createRandom();
 const WALLET_ADDRESS = WALLET.address;
@@ -43,6 +45,8 @@ beforeEach(() => {
     fn.mockReset();
   }
   attestMock.mockReset();
+  limiterMock.check.mockReset();
+  limiterMock.check.mockReturnValue(true);
 });
 
 describe("POST /api/attendance", () => {
@@ -175,6 +179,28 @@ describe("POST /api/attendance", () => {
 
       const res = await post(signedBody(freshTimestamp));
       expect(res.status).toBe(201);
+    });
+  });
+
+  describe("rate limiting", () => {
+    it("returns 429 when the per-wallet rate limit is exceeded", async () => {
+      limiterMock.check.mockReturnValue(false);
+
+      const res = await post(signedBody());
+      expect(res.status).toBe(429);
+      expect(await res.json()).toEqual({
+        error: "Too many requests. Please try again later.",
+      });
+      expect(prismaMock.attendance.create).not.toHaveBeenCalled();
+      expect(attestMock).not.toHaveBeenCalled();
+    });
+
+    it("checks the rate limiter after signature verification", async () => {
+      const res = await post({ wallet: "not-an-address" });
+      expect(res.status).toBe(400);
+      // Signature validation happens first — the limiter is never consulted
+      // for requests that fail wallet/signature checks.
+      expect(limiterMock.check).not.toHaveBeenCalled();
     });
   });
 

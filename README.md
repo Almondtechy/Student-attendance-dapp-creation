@@ -44,7 +44,7 @@ Built with **Next.js 16**, **ethers v6**, **Solidity/Foundry**, and **Prisma + P
 
 > **Security model:** students prove *who they are* by signing the API request; the *institution's* key (server-side `PRIVATE_KEY`) attests attendance on-chain. This separates identity from attestation, so attendance records are trustworthy to a third party.
 >
-> **Note:** `POST /api/attendance` is public and each valid request spends the institution's gas on attestation. For production, add rate limiting and/or an allowlist so a spammer can't drain the owner's ETH.
+> **Note:** `POST /api/attendance` is public and each valid request spends the institution's gas on attestation. A per-wallet rate limiter (`ATTENDANCE_RATE_LIMIT_MAX` per `ATTENDANCE_RATE_LIMIT_WINDOW_MS`, in-memory sliding window) caps how often one wallet can hit the endpoint so a spammer can't drain the owner's ETH. It runs *after* signature verification, so a spammer can't burn a wallet's quota without owning its key. For production, pair it with an allowlist and/or a shared (Redis-backed) limiter so it holds across multiple serverless instances.
 
 ## 📋 Prerequisites
 
