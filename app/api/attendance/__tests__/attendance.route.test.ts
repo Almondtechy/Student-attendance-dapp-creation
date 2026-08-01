@@ -19,8 +19,18 @@ vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/proof", () => ({ attestProofOnChain: attestMock }));
 vi.mock("@/lib/rateLimit", () => ({ attendanceLimiter: limiterMock }));
 
-const WALLET = ethers.Wallet.createRandom();
+// Deterministic wallets (fixed private keys). We avoid
+// ethers.Wallet.createRandom() because it crashes under Vitest's jsdom
+// environment (ethers 6.16's randomBytes returns a cross-realm Buffer that
+// getBytes rejects), which also failed GitHub Actions CI.
+const WALLET = new ethers.Wallet(
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+);
 const WALLET_ADDRESS = WALLET.address;
+// A second wallet, distinct from WALLET, for signature-mismatch tests.
+const OTHER_WALLET = new ethers.Wallet(
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+);
 
 /** Builds a genuinely signed "Attendance request: <wallet>:<ts>" body. */
 function signedBody(timestamp: number = Date.now()) {
@@ -83,9 +93,8 @@ describe("POST /api/attendance", () => {
     });
 
     it("rejects a signature produced by a different wallet", async () => {
-      const otherWallet = ethers.Wallet.createRandom();
       const message = `Attendance request: ${WALLET_ADDRESS}:${Date.now()}`;
-      const signature = otherWallet.signMessageSync(message);
+      const signature = OTHER_WALLET.signMessageSync(message);
       const res = await post({ wallet: WALLET_ADDRESS, message, signature });
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({
@@ -104,8 +113,7 @@ describe("POST /api/attendance", () => {
     });
 
     it("rejects a valid signature whose message names a different wallet", async () => {
-      const otherWallet = ethers.Wallet.createRandom();
-      const message = `Attendance request: ${otherWallet.address}:${Date.now()}`;
+      const message = `Attendance request: ${OTHER_WALLET.address}:${Date.now()}`;
       const signature = WALLET.signMessageSync(message);
       const res = await post({ wallet: WALLET_ADDRESS, message, signature });
       expect(res.status).toBe(401);
