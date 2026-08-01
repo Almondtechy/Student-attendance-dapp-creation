@@ -4,9 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "predev": "node scripts/sync-abi.mjs",
     "build": "next build",
+    "prebuild": "node scripts/sync-abi.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "sync:abi": "node scripts/sync-abi.mjs",
+    "check:abi": "node scripts/check-abi.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
@@ -19,15 +24,20 @@
   },
   "devDependencies": {
     "@metamask/providers": "^22.1.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.27",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "jsdom": "^26.0.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.0.0"
   }
 }

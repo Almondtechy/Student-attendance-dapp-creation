@@ -1,68 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@/hooks/useWallet";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AttendanceStats from "@/components/AttendanceStats";
 import MarkAttendance from "@/components/MarkAttendance";
 import AttendanceList from "@/components/AttendanceList";
-
-interface AttendanceRecord {
-  id: string;
-  date: string;
-  hashProof: string | null;
-  status: "confirmed" | "pending" | "failed";
-}
-
-// Demo data for development
-const MOCK_RECORDS: AttendanceRecord[] = [
-  {
-    id: "1",
-    date: "2026-07-28T09:00:00Z",
-    hashProof: "0x7a9f3c8d2e1b5a4f6c0d8e3f2a1b9c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b",
-    status: "confirmed",
-  },
-  {
-    id: "2",
-    date: "2026-07-27T09:00:00Z",
-    hashProof: "0x3b2c1d0e9f8a7b6c5d4e3f2a1b9c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c",
-    status: "confirmed",
-  },
-  {
-    id: "3",
-    date: "2026-07-25T09:00:00Z",
-    hashProof: "0x9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a",
-    status: "confirmed",
-  },
-  {
-    id: "4",
-    date: "2026-07-23T09:00:00Z",
-    hashProof: null,
-    status: "pending" as const,
-  },
-];
+import type { AttendanceRecord } from "@/types/attendance";
 
 export default function DashboardPage() {
   const { address } = useWallet();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
-  // Load attendance data
-  useEffect(() => {
-    if (!address) {
+  const loadAttendance = useCallback(async (wallet: string) => {
+    setIsLoadingData(true);
+    try {
+      const res = await fetch(
+        `/api/attendance?wallet=${encodeURIComponent(wallet)}`
+      );
+      const data = await res.json();
+      setRecords(Array.isArray(data) ? data : []);
+    } catch {
+      setRecords([]);
+    } finally {
       setIsLoadingData(false);
-      return;
     }
+  }, []);
 
-    // Using demo data for now. In production, fetch from /api/attendance
-    // when the backend endpoint is created.
-    const timer = setTimeout(() => {
-      setRecords(MOCK_RECORDS);
-      setIsLoadingData(false);
-    }, 800);
+  useEffect(() => {
+    if (address) {
+      loadAttendance(address);
+    }
+  }, [address, loadAttendance]);
 
-    return () => clearTimeout(timer);
-  }, [address]);
+  const confirmed = records.filter((r) => r.status === "confirmed").length;
+  const onChainProofs = records.filter((r) => r.hashProof).length;
+  const totalClasses = records.length;
 
   return (
     <ProtectedRoute>
@@ -104,9 +78,9 @@ export default function DashboardPage() {
           <div className="space-y-6">
             {/* Stats Cards */}
             <AttendanceStats
-              totalClasses={12}
-              attended={9}
-              onChainProofs={7}
+              totalClasses={totalClasses}
+              attended={confirmed}
+              onChainProofs={onChainProofs}
               isLoading={isLoadingData}
             />
 
@@ -114,7 +88,11 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Mark Attendance */}
               <div className="lg:col-span-1">
-                <MarkAttendance />
+                <MarkAttendance
+                  onMarked={(record) =>
+                    setRecords((prev) => [record, ...prev])
+                  }
+                />
               </div>
 
               {/* Quick info cards */}
@@ -156,7 +134,7 @@ export default function DashboardPage() {
                         Attendance Streak
                       </p>
                       <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {records.filter((r) => r.status === "confirmed").length} days
+                        {confirmed} days
                       </p>
                     </div>
                   </div>
@@ -164,15 +142,12 @@ export default function DashboardPage() {
                     <div
                       className="bg-gradient-to-r from-orange-500 to-rose-500 h-1.5 rounded-full transition-all duration-500"
                       style={{
-                        width: `${Math.min(
-                          (records.filter((r) => r.status === "confirmed").length / 10) * 100,
-                          100
-                        )}%`,
+                        width: `${Math.min((confirmed / 10) * 100, 100)}%`,
                       }}
                     />
                   </div>
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                    {10 - records.filter((r) => r.status === "confirmed").length} more to reach 10-day streak
+                    {Math.max(10 - confirmed, 0)} more to reach 10-day streak
                   </p>
                 </div>
               </div>

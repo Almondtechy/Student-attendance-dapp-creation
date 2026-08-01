@@ -2,60 +2,67 @@
 
 import { useState, useCallback } from "react";
 import { useWallet } from "@/hooks/useWallet";
-import { getProofContract } from "@/lib/contract";
-import { ethers } from "ethers";
+import type { AttendanceRecord } from "@/types/attendance";
 
-export default function MarkAttendance() {
-  const { address } = useWallet();
+interface MarkAttendanceProps {
+  onMarked?: (record: AttendanceRecord) => void;
+}
+
+export default function MarkAttendance({ onMarked }: MarkAttendanceProps) {
+  const { address, signer } = useWallet();
   const [isMarking, setIsMarking] = useState(false);
-  const [txHash, setTxHash] = useState<string | null>(null);
+  const [record, setRecord] = useState<AttendanceRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleMarkAttendance = useCallback(async () => {
-    if (!address) return;
+    if (!address || !signer) return;
 
     setIsMarking(true);
     setError(null);
-    setTxHash(null);
+    setRecord(null);
 
     try {
-      // Generate a unique hash for this attendance record
+      // Prove wallet ownership by signing the attendance request
       const timestamp = Date.now();
-      const message = ethers.solidityPackedKeccak256(
-        ["address", "uint256"],
-        [address, timestamp]
-      );
+      const message = `Attendance request: ${address}:${timestamp}`;
+      const signature = await signer.signMessage(message);
 
-      // Store proof on-chain
-      const contract = await getProofContract();
-      const tx = await contract.storeProof(message);
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: address, message, signature }),
+      });
 
-      // Wait for confirmation
-      const receipt = await tx.wait();
+      const data = await res.json();
 
-      setTxHash(receipt?.hash || tx.hash);
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to mark attendance");
+      }
+
+      setRecord(data as AttendanceRecord);
       setShowConfirm(false);
+      onMarked?.(data as AttendanceRecord);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to mark attendance";
-      // Don't show "user rejected" as an error - it's user-initiated
-      if (message.includes("user rejected") || message.includes("User denied")) {
-        setError(null);
+      setShowConfirm(false);
+      if (message.includes("already marked today")) {
+        setError("You've already marked attendance today.");
+      } else if (message.includes("expired")) {
+        setError("Request expired. Please try again.");
       } else if (
-        message.includes("Contract address not set") ||
-        message.includes("NEXT_PUBLIC_PROOF_ADDRESS")
+        message.toLowerCase().includes("signature") ||
+        message.toLowerCase().includes("wallet")
       ) {
-        setError(
-          "Contract address not configured. Set NEXT_PUBLIC_PROOF_ADDRESS in your .env file."
-        );
+        setError("Could not verify your wallet signature. Please reconnect your wallet.");
       } else {
         setError(message);
       }
     } finally {
       setIsMarking(false);
     }
-  }, [address]);
+  }, [address, signer, onMarked]);
 
   if (!address) return null;
 
@@ -67,7 +74,7 @@ export default function MarkAttendance() {
             Mark Attendance
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Store your attendance proof on the blockchain
+            Record your attendance with on-chain proof
           </p>
         </div>
         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
@@ -77,7 +84,7 @@ export default function MarkAttendance() {
         </div>
       </div>
 
-      {!showConfirm && !txHash && (
+      {!showConfirm && !record && (
         <button
           onClick={() => setShowConfirm(true)}
           disabled={isMarking}
@@ -89,7 +96,7 @@ export default function MarkAttendance() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Storing Proof...
+              Recording...
             </span>
           ) : (
             <span className="flex items-center justify-center gap-2">
@@ -116,7 +123,9 @@ export default function MarkAttendance() {
                 Confirm Attendance
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                This will store a proof of your attendance on the blockchain. A small gas fee will be required.
+                This will record your attendance for today. Your wallet will be
+                asked to sign the request, and a proof is stored on-chain by
+                the institution.
               </p>
               <div className="flex gap-2 mt-4">
                 <button
@@ -124,7 +133,7 @@ export default function MarkAttendance() {
                   disabled={isMarking}
                   className="flex-1 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-400 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
                 >
-                  {isMarking ? "Confirming..." : "Confirm & Pay Gas"}
+                  {isMarking ? "Confirming..." : "Confirm & Record"}
                 </button>
                 <button
                   onClick={() => setShowConfirm(false)}
@@ -140,7 +149,7 @@ export default function MarkAttendance() {
       )}
 
       {/* Success State */}
-      {txHash && !showConfirm && (
+      {record && !showConfirm && (
         <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -153,12 +162,14 @@ export default function MarkAttendance() {
                 Attendance Marked Successfully! 🎉
               </p>
               <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 truncate">
-                Tx: {txHash}
+                {record.hashProof
+                  ? `On-chain proof: ${record.hashProof}`
+                  : "Recorded off-chain — awaiting on-chain attestation"}
               </p>
             </div>
           </div>
           <button
-            onClick={() => { setTxHash(null); setShowConfirm(false); }}
+            onClick={() => { setRecord(null); setShowConfirm(false); }}
             className="mt-3 w-full text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 font-medium py-2 px-4 rounded-lg transition-colors"
           >
             Mark Another

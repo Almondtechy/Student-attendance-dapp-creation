@@ -64,7 +64,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // Listen for account changes
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     if (typeof window === "undefined" || !window.ethereum) return;
 
     const handleAccountsChanged = (accounts: unknown) => {

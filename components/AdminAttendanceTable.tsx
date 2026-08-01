@@ -1,20 +1,23 @@
 "use client";
 
-import type { AttendanceRecord } from "@/types/attendance";
+import type { AdminAttendanceRecord } from "@/types/attendance";
 
-interface AttendanceListProps {
-  records: AttendanceRecord[];
+interface AdminAttendanceTableProps {
+  records: AdminAttendanceRecord[];
   isLoading?: boolean;
 }
 
+function shortenWallet(wallet: string): string {
+  return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
+}
+
 function shortenHash(hash: string): string {
-  return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+  return `${hash.slice(0, 10)}...${hash.slice(-6)}`;
 }
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", {
-    weekday: "short",
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -23,15 +26,15 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export default function AttendanceList({
+export default function AdminAttendanceTable({
   records,
   isLoading = false,
-}: AttendanceListProps) {
+}: AdminAttendanceTableProps) {
   if (isLoading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="h-6 w-56 bg-gray-200 dark:bg-gray-700 rounded" />
           <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded" />
           <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded" />
           <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded" />
@@ -45,15 +48,15 @@ export default function AttendanceList({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Attendance History
+            All Student Attendance
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Your recent attendance records
+            Every attendance record across all students
           </p>
         </div>
-        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+        <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-violet-500/20">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
           </svg>
         </div>
       </div>
@@ -69,7 +72,7 @@ export default function AttendanceList({
             No attendance records yet
           </p>
           <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-            Mark your attendance to see it here
+            Students will appear here once they mark attendance
           </p>
         </div>
       ) : (
@@ -77,6 +80,9 @@ export default function AttendanceList({
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-700">
+                <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-6 pb-3">
+                  Student Wallet
+                </th>
                 <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-6 pb-3">
                   Date
                 </th>
@@ -94,6 +100,11 @@ export default function AttendanceList({
                   key={record.id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
+                  <td className="px-6 py-4">
+                    <code className="text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-md">
+                      {shortenWallet(record.wallet)}
+                    </code>
+                  </td>
                   <td className="px-6 py-4">
                     <span className="text-sm text-gray-900 dark:text-white">
                       {formatDate(record.date)}

@@ -14,7 +14,8 @@
 contracts/out/
 contracts/cache/
 contracts/broadcast/
-contracts/foundry.lock# testing
+contracts/foundry.lock
+# testing
 /coverage
 
 # next.js
@@ -36,6 +37,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
