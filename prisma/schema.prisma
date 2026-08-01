@@ -51,10 +51,13 @@ model Attendance {
   userId    String?
   wallet    String
   date      DateTime
+  dateKey   String // UTC day (YYYY-MM-DD) — the uniqueness key for one-per-day
   hashProof String?
   user      User?    @relation(fields: [userId], references: [id])
 
-  @@index([wallet])
+  // One attendance record per wallet per UTC day. The DB enforces this
+  // atomically, so two concurrent requests can't both insert.
+  @@unique([wallet, dateKey])
 }
 
 enum Role {

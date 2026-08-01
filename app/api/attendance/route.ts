@@ -3,6 +3,16 @@ import { attestProofOnChain } from "@/lib/proof";
 import { verifySignedRequest, WALLET_REGEX } from "@/lib/auth";
 import { toAttendanceJson } from "@/lib/attendance";
 
+/** True when `error` is a Prisma P2002 (unique constraint violation). */
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const wallet = searchParams.get("wallet")?.toLowerCase() ?? "";
@@ -51,15 +61,14 @@ export async function POST(request: Request) {
   try {
     const { prisma } = await import("@/lib/prisma");
 
-    // Prevent double-marking on the same day
+    // Prevent double-marking on the same day. `dateKey` is the UTC day
+    // (YYYY-MM-DD); the DB enforces @@unique([wallet, dateKey]) so two
+    // concurrent requests can't both insert for the same wallet + day.
     const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
+    const dateKey = now.toISOString().slice(0, 10);
 
     const existing = await prisma.attendance.findFirst({
-      where: { wallet, date: { gte: startOfDay, lt: endOfDay } },
+      where: { wallet, dateKey },
     });
     if (existing) {
       return Response.json(
@@ -74,9 +83,23 @@ export async function POST(request: Request) {
       ["address", "uint256"],
       [wallet, Date.now()]
     );
-    const record = await prisma.attendance.create({
-      data: { wallet, date: now, hashProof: null },
-    });
+
+    let record;
+    try {
+      record = await prisma.attendance.create({
+        data: { wallet, dateKey, date: now, hashProof: null },
+      });
+    } catch (error) {
+      // P2002 = unique (wallet, dateKey) violation: a concurrent request
+      // slipped through the check above. Surface the same friendly 409.
+      if (isUniqueConstraintError(error)) {
+        return Response.json(
+          { error: "Attendance already marked today" },
+          { status: 409 }
+        );
+      }
+      throw error;
+    }
 
     const attestedHash = await attestProofOnChain(proofHash, wallet);
     const saved = attestedHash

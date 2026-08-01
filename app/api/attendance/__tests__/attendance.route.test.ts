@@ -195,6 +195,20 @@ describe("POST /api/attendance", () => {
       expect(prismaMock.attendance.create).not.toHaveBeenCalled();
       expect(attestMock).not.toHaveBeenCalled();
     });
+
+    it("returns 409 when a concurrent insert violates the unique (wallet, dateKey) constraint", async () => {
+      // Race: findFirst sees nothing, but create hits the DB's unique
+      // constraint because another request inserted first.
+      prismaMock.attendance.findFirst.mockResolvedValue(null);
+      prismaMock.attendance.create.mockRejectedValue({ code: "P2002" });
+
+      const res = await post(signedBody());
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({
+        error: "Attendance already marked today",
+      });
+      expect(attestMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("off-chain fallback", () => {
