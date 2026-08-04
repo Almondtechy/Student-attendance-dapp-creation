@@ -7,31 +7,108 @@
     },
     {
       "type": "function",
-      "name": "owner",
-      "inputs": [],
-      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "stateMutability": "view"
+      "name": "authorizeMarker",
+      "inputs": [
+        {
+          "name": "marker",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
     },
     {
       "type": "function",
       "name": "markers",
-      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
-      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "owner",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
       "stateMutability": "view"
     },
     {
       "type": "function",
       "name": "proofs",
-      "inputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
-      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+      "inputs": [
+        {
+          "name": "",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
       "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "revokeMarker",
+      "inputs": [
+        {
+          "name": "marker",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
     },
     {
       "type": "function",
       "name": "storeProof",
       "inputs": [
-        { "name": "hash", "type": "bytes32", "internalType": "bytes32" },
-        { "name": "student", "type": "address", "internalType": "address" }
+        {
+          "name": "hash",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "student",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "transferOwnership",
+      "inputs": [
+        {
+          "name": "newOwner",
+          "type": "address",
+          "internalType": "address"
+        }
       ],
       "outputs": [],
       "stateMutability": "nonpayable"
@@ -39,59 +116,89 @@
     {
       "type": "function",
       "name": "verifyProof",
-      "inputs": [{ "name": "hash", "type": "bytes32", "internalType": "bytes32" }],
-      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+      "inputs": [
+        {
+          "name": "hash",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
       "stateMutability": "view"
     },
     {
-      "type": "function",
-      "name": "authorizeMarker",
-      "inputs": [{ "name": "marker", "type": "address", "internalType": "address" }],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "revokeMarker",
-      "inputs": [{ "name": "marker", "type": "address", "internalType": "address" }],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
-      "type": "function",
-      "name": "transferOwnership",
-      "inputs": [{ "name": "newOwner", "type": "address", "internalType": "address" }],
-      "outputs": [],
-      "stateMutability": "nonpayable"
-    },
-    {
       "type": "event",
-      "name": "ProofStored",
+      "name": "MarkerAuthorized",
       "inputs": [
-        { "name": "hash", "type": "bytes32", "indexed": true, "internalType": "bytes32" },
-        { "name": "student", "type": "address", "indexed": true, "internalType": "address" },
-        { "name": "timestamp", "type": "uint256", "indexed": false, "internalType": "uint256" }
+        {
+          "name": "marker",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
       ],
       "anonymous": false
     },
     {
       "type": "event",
-      "name": "MarkerAuthorized",
-      "inputs": [{ "name": "marker", "type": "address", "indexed": true, "internalType": "address" }],
-      "anonymous": false
-    },
-    {
-      "type": "event",
       "name": "MarkerRevoked",
-      "inputs": [{ "name": "marker", "type": "address", "indexed": true, "internalType": "address" }],
+      "inputs": [
+        {
+          "name": "marker",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
       "anonymous": false
     },
     {
       "type": "event",
       "name": "OwnershipTransferred",
       "inputs": [
-        { "name": "previousOwner", "type": "address", "indexed": true, "internalType": "address" },
-        { "name": "newOwner", "type": "address", "indexed": true, "internalType": "address" }
+        {
+          "name": "previousOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "newOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ProofStored",
+      "inputs": [
+        {
+          "name": "hash",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "student",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "timestamp",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
       ],
       "anonymous": false
     }

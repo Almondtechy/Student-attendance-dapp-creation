@@ -15,35 +15,13 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(uuid())
-  name      String
-  email     String     @unique
-  wallet    String?
-  role      Role       @default(USER)
-  createdAt DateTime   @default(now())
-  reviews   Review[]
-  payments  Payment[]
+  id         String       @id @default(uuid())
+  name       String
+  email      String?      @unique
+  wallet     String?      @unique // one profile per wallet — linked when attendance is marked
+  role       Role         @default(USER)
+  createdAt  DateTime     @default(now())
   attendance Attendance[]
-}
-
-model Payment {
-  id        String   @id @default(uuid())
-  userId    String
-  amount    Float
-  reference String
-  hashProof String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-}
-
-model Review {
-  id        String   @id @default(uuid())
-  content   String
-  rating    Int
-  hashProof String?
-  userId    String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Attendance {

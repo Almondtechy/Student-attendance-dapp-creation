@@ -91,15 +91,27 @@ export async function POST(request: Request) {
 
     // Create the DB record first, then attempt on-chain attestation so a
     // failed DB insert never leaves an orphaned on-chain proof.
+    // The hash is derived from the record's `date` (which is stored), so a
+    // later retry/backfill reproduces the identical hash.
     const proofHash = ethers.solidityPackedKeccak256(
       ["address", "uint256"],
-      [wallet, Date.now()]
+      [wallet, now.getTime()]
     );
+
+    // Link the record to the student's profile (if they've set one up).
+    // This is best-effort — a profile is never required to mark attendance.
+    let userId: string | null = null;
+    try {
+      const user = await prisma.user.findUnique({ where: { wallet } });
+      userId = user?.id ?? null;
+    } catch {
+      userId = null;
+    }
 
     let record;
     try {
       record = await prisma.attendance.create({
-        data: { wallet, dateKey, date: now, hashProof: null },
+        data: { wallet, dateKey, date: now, hashProof: null, userId },
       });
     } catch (error) {
       // P2002 = unique (wallet, dateKey) violation: a concurrent request

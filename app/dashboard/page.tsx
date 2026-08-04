@@ -5,6 +5,7 @@ import { useWallet } from "@/hooks/useWallet";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AttendanceStats from "@/components/AttendanceStats";
 import MarkAttendance from "@/components/MarkAttendance";
+import StudentProfileCard from "@/components/StudentProfileCard";
 import AttendanceList from "@/components/AttendanceList";
 import type { AttendanceRecord } from "@/types/attendance";
 
@@ -88,11 +89,14 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Mark Attendance */}
               <div className="lg:col-span-1">
-                <MarkAttendance
-                  onMarked={(record) =>
-                    setRecords((prev) => [record, ...prev])
-                  }
-                />
+                <div className="space-y-6">
+                  <MarkAttendance
+                    onMarked={(record) =>
+                      setRecords((prev) => [record, ...prev])
+                    }
+                  />
+                  <StudentProfileCard />
+                </div>
               </div>
 
               {/* Quick info cards */}

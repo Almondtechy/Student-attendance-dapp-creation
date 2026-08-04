@@ -1,5 +1,6 @@
 "use client";
 
+import VerifyProofButton from "./VerifyProofButton";
 import type { AttendanceRecord } from "@/types/attendance";
 
 interface AttendanceListProps {
@@ -83,6 +84,9 @@ export default function AttendanceList({
                 <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-6 pb-3">
                   Proof Hash
                 </th>
+                <th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-6 pb-3">
+                  On-Chain
+                </th>
                 <th className="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-6 pb-3">
                   Status
                 </th>
@@ -108,6 +112,13 @@ export default function AttendanceList({
                       <span className="text-xs text-gray-400 italic">
                         No on-chain proof
                       </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {record.hashProof ? (
+                      <VerifyProofButton hashProof={record.hashProof} />
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">

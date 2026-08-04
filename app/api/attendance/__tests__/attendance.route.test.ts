@@ -10,6 +10,9 @@ const { prismaMock, attestMock, limiterMock } = vi.hoisted(() => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    user: {
+      findUnique: vi.fn(),
+    },
   },
   attestMock: vi.fn(),
   limiterMock: { check: vi.fn(() => true) },
@@ -54,6 +57,8 @@ beforeEach(() => {
   for (const fn of Object.values(prismaMock.attendance)) {
     fn.mockReset();
   }
+  prismaMock.user.findUnique.mockReset();
+  prismaMock.user.findUnique.mockResolvedValue(null);
   attestMock.mockReset();
   limiterMock.check.mockReset();
   limiterMock.check.mockReturnValue(true);

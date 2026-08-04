@@ -9,6 +9,9 @@ Built with **Next.js 16**, **ethers v6**, **Solidity/Foundry**, and **Prisma + P
 - **Wallet-powered auth** — MetaMask connection via a shared `WalletProvider`; no passwords. Route guards protect the dashboard.
 - **Signed attendance requests** — students sign `Attendance request: <wallet>:<timestamp>` with their wallet; the API verifies the signature (with a 5-minute TTL) so nobody can mark attendance for someone else.
 - **Verifiable on-chain proofs** — the `ProofStorage` contract records a proof hash for each attendance event. Only the **contract owner** and **authorized markers** (teachers) can record proofs, so attendance can't be self-attested.
+- **On-chain verification in the UI** — every attendance record with a proof hash has a **Verify** button that calls the contract's read-only `verifyProof` view (no gas) and shows whether the proof really exists on-chain.
+- **Attestation retry / backfill** — if the RPC hiccups during marking, the record is saved as `pending` off-chain; the admin dashboard has a **Retry Pending** action (`POST /api/admin/attest`) that re-attests every pending record on-chain using the same deterministic proof hash.
+- **Student profiles** — students set their name (and optional email) in a wallet-signed profile card on the dashboard; the profile is linked to every attendance record (`Attendance.userId`) and shown to admins instead of a bare wallet address.
 - **Real-time dashboard** — stats cards (total classes, attended, rate, on-chain proofs), attendance history, and streak tracking, all served from a real API backed by PostgreSQL.
 - **Duplicate protection** — one attendance record per wallet per day (HTTP 409).
 - **Responsive dark/light UI** — Tailwind CSS with loading skeletons, empty states, and error banners.
@@ -138,7 +141,10 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
 The contract owner (the wallet whose `PRIVATE_KEY` is in `.env`) has an admin view at `/admin`:
 
 - **Authorize / revoke markers (teachers)** — the owner's wallet signs on-chain `authorizeMarker`/`revokeMarker` calls. The current marker list is derived from `MarkerAuthorized`/`MarkerRevoked` events.
-- **See all students' attendance** — a signature-protected API (`/api/admin/attendance`) returns every attendance record with student wallet, date, on-chain proof, and status, plus summary stats (total students, records, marked today). Only the owner's signature is accepted.
+- **See all students' attendance** — a signature-protected API (`/api/admin/attendance`) returns every attendance record with the student's name/email (when a profile is set), wallet, date, on-chain proof, and status, plus summary stats (total students, records, marked today). Only the owner's signature is accepted.
+- **Verify any proof on-chain** — each row in the table has a **Verify** button that calls `verifyProof` on the deployed contract.
+- **Pagination & CSV export** — the attendance table is server-side paginated (10 per page, up to 100 via `pageSize`), and an **Export CSV** button downloads every record as a `.csv` from the admin-only `/api/admin/attendance/export` endpoint.
+- **Retry pending attestations** — the **Retry Pending** button signs an `Admin attest` request and calls `POST /api/admin/attest`, which finds every record with `hashProof = null`, re-attests it on-chain (same deterministic hash derived from the record's date), and reports how many succeeded/failed.
 
 The Admin link appears in the navbar automatically when the connected wallet is the owner.
 
@@ -153,7 +159,7 @@ The app deploys cleanly to **Vercel**:
 3. **Set the build command to `npx prisma generate && next build`** — the Prisma client (`lib/generated/prisma`) is gitignored and must be generated at build time, or the API routes will return 503.
 4. Add the environment variables from `.env.example` (note: `PRIVATE_KEY`/`RPC_URL` are server-only; `NEXT_PUBLIC_PROOF_ADDRESS` is public).
 5. Point `DATABASE_URL` at your hosted PostgreSQL and run `prisma db push` (or `prisma migrate deploy`) against it.
-6. Deploy. The `/api/attendance` and `/api/users` routes are server-rendered on demand.
+6. Deploy. The `/api/attendance`, `/api/admin/attendance`, and `/api/admin/status` routes are server-rendered on demand.
 
 ## 📦 Scripts
 
@@ -170,9 +176,10 @@ The app deploys cleanly to **Vercel**:
 ```
 app/                    # Next.js App Router pages + API routes
   api/attendance/       # GET (list) / POST (mark) attendance
-  api/users/            # demo user listing endpoint
+  api/profile/          # GET (fetch) / PUT (save) the signed-in student's profile
+  api/admin/            # owner-only admin data (attendance, status, attest retry, CSV export)
   dashboard/            # protected attendance dashboard
-components/             # UI components (stats, list, mark attendance, navbar…)
+components/             # UI components (stats, list, profile card, mark attendance, navbar…)
 hooks/useWallet.tsx     # wallet context provider + hook
 lib/
   abis/                 # committed ProofStorage ABI (builds without forge)
@@ -180,7 +187,7 @@ lib/
   web3.ts               # wallet connection
   prisma.ts             # Prisma client singleton
 contracts/              # Foundry project (src / test / script)
-prisma/schema.prisma    # data model
+prisma/schema.prisma    # data model (User, Attendance)
 ```
 
 ## 🔜 Roadmap

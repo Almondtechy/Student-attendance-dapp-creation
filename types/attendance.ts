@@ -9,4 +9,6 @@ export interface AttendanceRecord {
 
 export interface AdminAttendanceRecord extends AttendanceRecord {
   wallet: string;
+  studentName?: string | null;
+  studentEmail?: string | null;
 }
