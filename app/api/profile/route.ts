@@ -3,10 +3,12 @@ import { verifySignedRequest, WALLET_REGEX } from "@/lib/auth";
 export interface StudentProfile {
   name: string | null;
   email: string | null;
+  matricNo: string | null;
 }
 
 const NAME_MAX = 100;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MATRIC_REGEX = /^[A-Za-z0-9/-]{2,32}$/;
 
 function isUniqueConstraintError(error: unknown): boolean {
   return (
@@ -36,6 +38,7 @@ export async function GET(request: Request) {
     const profile: StudentProfile = {
       name: user?.name ?? null,
       email: user?.email ?? null,
+      matricNo: user?.matricNo ?? null,
     };
     return Response.json(profile);
   } catch (error) {
@@ -55,6 +58,7 @@ export async function PUT(request: Request) {
     signature?: unknown;
     name?: unknown;
     email?: unknown;
+    matricNo?: unknown;
   };
   try {
     body = await request.json();
@@ -91,6 +95,17 @@ export async function PUT(request: Request) {
     email = body.email.trim().toLowerCase();
   }
 
+  let matricNo: string | null = null;
+  if (body.matricNo !== undefined && body.matricNo !== null && body.matricNo !== "") {
+    if (typeof body.matricNo !== "string" || !MATRIC_REGEX.test(body.matricNo.trim())) {
+      return Response.json(
+        { error: "Please enter a valid matric / student ID number" },
+        { status: 400 }
+      );
+    }
+    matricNo = body.matricNo.trim();
+  }
+
   try {
     const { prisma } = await import("@/lib/prisma");
 
@@ -101,21 +116,25 @@ export async function PUT(request: Request) {
     try {
       user = await prisma.user.upsert({
         where: { wallet },
-        update: { name, email },
-        create: { wallet, name, email },
+        update: { name, email, ...(matricNo ? { matricNo } : {}) },
+        create: { wallet, name, email, ...(matricNo ? { matricNo } : {}) },
       });
     } catch (error) {
-      // P2002 on email — another student already claimed it.
+      // P2002 on email/matric — another student already claimed it.
       if (isUniqueConstraintError(error)) {
         return Response.json(
-          { error: "That email is already linked to another student" },
+          { error: "That email or matric number is already linked to another student" },
           { status: 409 }
         );
       }
       throw error;
     }
 
-    const profile: StudentProfile = { name: user.name, email: user.email };
+    const profile: StudentProfile = {
+      name: user.name,
+      email: user.email,
+      matricNo: user.matricNo ?? null,
+    };
     return Response.json(profile, { status: 200 });
   } catch (error) {
     console.error("Failed to save profile:", error);

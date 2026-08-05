@@ -12,8 +12,16 @@ const pagination: AdminPagination = {
   totalPages: 3,
 };
 
+const baseRecord = {
+  txHash: null as string | null,
+  courseCode: "CS101" as string | null,
+  courseName: "Blockchain Basics" as string | null,
+  sessionId: "s1" as string | null,
+};
+
 const records: AdminAttendanceRecord[] = [
   {
+    ...baseRecord,
     id: "1",
     wallet: "0x1234567890abcdef1234567890abcdef12345678",
     date: "2026-07-28T09:00:00Z",
@@ -21,6 +29,7 @@ const records: AdminAttendanceRecord[] = [
     status: "confirmed",
   },
   {
+    ...baseRecord,
     id: "2",
     wallet: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
     date: "2026-07-27T09:00:00Z",

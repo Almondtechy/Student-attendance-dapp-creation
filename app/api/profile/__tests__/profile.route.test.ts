@@ -78,6 +78,7 @@ describe("GET /api/profile", () => {
     expect(await res.json()).toEqual({
       name: "Ada Lovelace",
       email: "ada@school.edu",
+      matricNo: null,
     });
     expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
       where: { wallet: WALLET_ADDRESS.toLowerCase() },
@@ -90,7 +91,7 @@ describe("GET /api/profile", () => {
       new Request(`http://localhost/api/profile?wallet=${WALLET_ADDRESS}`)
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ name: null, email: null });
+    expect(await res.json()).toEqual({ name: null, email: null, matricNo: null });
   });
 
   it("returns 503 when the database is unavailable", async () => {
@@ -177,7 +178,11 @@ describe("PUT /api/profile", () => {
     });
     const res = await put({ ...signedBody(), email: "" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ name: "Ada Lovelace", email: null });
+    expect(await res.json()).toEqual({
+      name: "Ada Lovelace",
+      email: null,
+      matricNo: null,
+    });
     expect(prismaMock.user.upsert).toHaveBeenCalledWith({
       where: { wallet: WALLET_ADDRESS.toLowerCase() },
       update: { name: "Ada Lovelace", email: null },
@@ -201,6 +206,7 @@ describe("PUT /api/profile", () => {
     expect(await res.json()).toEqual({
       name: "Ada Lovelace",
       email: "ada@school.edu",
+      matricNo: null,
     });
     expect(prismaMock.user.upsert).toHaveBeenCalledWith({
       where: { wallet: WALLET_ADDRESS.toLowerCase() },

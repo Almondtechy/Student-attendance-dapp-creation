@@ -2,342 +2,134 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@/hooks/useWallet";
-import { useAdmin } from "@/hooks/useAdmin";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import MarkerManager from "@/components/MarkerManager";
-import AdminAttendanceTable, {
-  type AdminPagination,
-} from "@/components/AdminAttendanceTable";
-import type { AdminAttendanceRecord } from "@/types/attendance";
+import { useTeacherStatus } from "@/hooks/useTeacherStatus";
+import { signAdminRequest, toQuery } from "@/lib/client";
+import TeacherLoginCard from "@/components/TeacherLoginCard";
+import AdminOverviewPanel from "@/components/AdminOverviewPanel";
+import AdminCoursesPanel from "@/components/AdminCoursesPanel";
+import AdminSessionsPanel from "@/components/AdminSessionsPanel";
+import AdminStudentsPanel from "@/components/AdminStudentsPanel";
+import AdminTeachersPanel from "@/components/AdminTeachersPanel";
+import AdminAttendancePanel from "@/components/AdminAttendancePanel";
+import type { CourseSummary } from "@/types/attendance";
 
-interface AdminStats {
-  totalStudents: number;
-  totalRecords: number;
-  todayRecords: number;
-}
+type TabKey = "overview" | "courses" | "sessions" | "students" | "teachers" | "attendance";
 
-const EMPTY_STATS: AdminStats = {
-  totalStudents: 0,
-  totalRecords: 0,
-  todayRecords: 0,
-};
-
-const PAGE_SIZE = 10;
+const TABS: { key: TabKey; label: string; icon: string }[] = [
+  { key: "overview", label: "Overview", icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" },
+  { key: "courses", label: "Courses", icon: "M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342" },
+  { key: "sessions", label: "Sessions", icon: "M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" },
+  { key: "students", label: "Students", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" },
+  { key: "teachers", label: "Teachers", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" },
+  { key: "attendance", label: "Attendance", icon: "M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" },
+];
 
 export default function AdminPage() {
   const { address, signer } = useWallet();
-  const { isAdmin, isLoading: isAdminStatusLoading } = useAdmin();
-  const [records, setRecords] = useState<AdminAttendanceRecord[]>([]);
-  const [stats, setStats] = useState<AdminStats>(EMPTY_STATS);
-  const [pagination, setPagination] = useState<AdminPagination | null>(null);
-  const [page, setPage] = useState(1);
-  const [isLoadingData, setIsLoadingData] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [retryResult, setRetryResult] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
+  const { status, isLoading, canAccess, refresh } = useTeacherStatus();
+  const [tab, setTab] = useState<TabKey>("overview");
+  const [courses, setCourses] = useState<CourseSummary[]>([]);
 
-  const loadAdminData = useCallback(
-    async (targetPage?: number) => {
-      if (!address || !signer || !isAdmin) return;
-      setIsLoadingData(true);
-      setError(null);
-      try {
-        const timestamp = Date.now();
-        const message = `Admin access: ${address}:${timestamp}`;
-        const signature = await signer.signMessage(message);
-
-        const res = await fetch(
-          `/api/admin/attendance?wallet=${encodeURIComponent(
-            address
-          )}&message=${encodeURIComponent(message)}&signature=${encodeURIComponent(
-            signature
-          )}&page=${targetPage ?? page}&pageSize=${PAGE_SIZE}`
-        );
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data?.error || "Failed to load admin data");
-        }
-
-        setRecords(Array.isArray(data.records) ? data.records : []);
-        setStats(data.stats ?? EMPTY_STATS);
-        setPagination(data.pagination ?? null);
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load admin data";
-        setError(message);
-        setRecords([]);
-        setStats(EMPTY_STATS);
-        setPagination(null);
-      } finally {
-        setIsLoadingData(false);
-      }
-    },
-    [address, signer, isAdmin, page]
-  );
-
-  const handlePageChange = useCallback(
-    (nextPage: number) => {
-      if (nextPage < 1) return;
-      setPage(nextPage);
-      void loadAdminData(nextPage);
-    },
-    [loadAdminData]
-  );
-
-  const handleExport = useCallback(async () => {
-    if (!address || !signer || !isAdmin) return;
-    setIsExporting(true);
+  const loadCourses = useCallback(async () => {
     try {
-      const timestamp = Date.now();
-      const message = `Admin access: ${address}:${timestamp}`;
-      const signature = await signer.signMessage(message);
-
-      const res = await fetch(
-        `/api/admin/attendance/export?wallet=${encodeURIComponent(
-          address
-        )}&message=${encodeURIComponent(message)}&signature=${encodeURIComponent(
-          signature
-        )}`
-      );
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed to export attendance");
-      }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `attendance-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to export attendance";
-      setError(message);
-    } finally {
-      setIsExporting(false);
-    }
-  }, [address, signer, isAdmin]);
-
-  const handleRetryAttestations = useCallback(async () => {
-    if (!address || !signer || !isAdmin) return;
-    setIsRetrying(true);
-    setRetryResult(null);
-    try {
-      const timestamp = Date.now();
-      const message = `Admin attest: ${address}:${timestamp}`;
-      const signature = await signer.signMessage(message);
-
-      const res = await fetch("/api/admin/attest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet: address, message, signature }),
-      });
+      const signed = address && signer ? await signAdminRequest(signer, address) : {};
+      const res = await fetch(`/api/admin/courses${toQuery(signed)}`);
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.error || "Failed to retry attestations");
-      }
-
-      setRetryResult(
-        `Attested ${data.attested} of ${data.pending} pending record(s)` +
-          (data.failed.length > 0 ? `; ${data.failed.length} still failed` : "")
-      );
-      await loadAdminData();
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to retry attestations";
-      setRetryResult(`Error: ${message}`);
-    } finally {
-      setIsRetrying(false);
+      if (!res.ok) throw new Error(data?.error || "Failed to load courses");
+      setCourses(Array.isArray(data.courses) ? data.courses : []);
+    } catch {
+      setCourses([]);
     }
-  }, [address, signer, isAdmin, loadAdminData]);
+  }, [address, signer]);
 
   useEffect(() => {
-    if (address && signer && isAdmin) {
-      loadAdminData(1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, signer, isAdmin]);
+    if (canAccess) void loadCourses();
+  }, [canAccess, loadCourses]);
 
-  const statCards = [
-    {
-      label: "Total Students",
-      value: stats.totalStudents,
-      gradient: "from-blue-500 to-cyan-500",
-      shadow: "shadow-blue-500/20",
-    },
-    {
-      label: "Total Records",
-      value: stats.totalRecords,
-      gradient: "from-violet-500 to-purple-500",
-      shadow: "shadow-violet-500/20",
-    },
-    {
-      label: "Marked Today",
-      value: stats.todayRecords,
-      gradient: "from-emerald-500 to-green-500",
-      shadow: "shadow-emerald-500/20",
-    },
-  ];
+  const showLogin = !canAccess && !isLoading;
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950">
-        {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600">
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-          </div>
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-                  Admin Dashboard
-                </h1>
-                <p className="mt-2 text-violet-100 text-sm sm:text-base max-w-xl">
-                  Authorize teachers and review every student&apos;s on-chain
-                  attendance proofs.
-                </p>
-              </div>
-              {address && (
-                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2.5">
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                  <span className="text-sm font-mono text-white/90">
-                    {address.slice(0, 6)}...{address.slice(-4)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-violet-50 to-indigo-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950">
+      {/* Header */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
         </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 pb-12">
-          {isAdminStatusLoading ? (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-10 text-center">
-              <div className="animate-pulse space-y-4">
-                <div className="h-6 w-48 mx-auto bg-gray-200 dark:bg-gray-700 rounded" />
-                <div className="h-10 w-64 mx-auto bg-gray-200 dark:bg-gray-700 rounded" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3 py-1 mb-4">
+                <div className="w-1.5 h-1.5 bg-emerald-300 rounded-full animate-pulse" />
+                <span className="text-xs font-medium text-violet-100">
+                  Teacher / Admin Portal
+                </span>
               </div>
+              <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                Manage Attendance
+              </h1>
+              <p className="mt-2 text-violet-100 text-sm sm:text-base max-w-xl">
+                Register students, create courses and open attendance sessions
+                with enforceable on-chain rules.
+              </p>
             </div>
-          ) : !isAdmin ? (
-            /* Not admin — access denied */
-            <div className="flex flex-col items-center justify-center min-h-[50vh] px-6">
-              <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
-                <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6">
-                  <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                  Access Restricted
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">
-                  Only the contract owner (the account that deployed
-                  ProofStorage and holds the server PRIVATE_KEY) can access the
-                  admin dashboard.
-                </p>
+            {canAccess && (
+              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-2.5 self-start sm:self-auto">
+                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                <span className="text-sm font-medium text-white/90">
+                  {status?.teacherEmail ??
+                    (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Teacher")}
+                </span>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {error && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
-                  <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                    Failed to load admin data
-                  </p>
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                    {error}
-                  </p>
-                </div>
-              )}
-
-              {/* Attestation retry / backfill */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    Retry pending attestations
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Re-attempts on-chain attestation for every pending record
-                    (records that were saved off-chain when the RPC was down).
-                  </p>
-                  {retryResult && (
-                    <p className="text-xs mt-1 text-blue-600 dark:text-blue-400">
-                      {retryResult}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={handleRetryAttestations}
-                  disabled={isRetrying}
-                  className="self-start sm:self-auto shrink-0 inline-flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 disabled:from-gray-400 disabled:to-gray-400 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-600/20 disabled:cursor-not-allowed"
-                >
-                  {isRetrying ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Retrying...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                      </svg>
-                      Retry Pending
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {statCards.map((stat) => (
-                  <div
-                    key={stat.label}
-                    className={`relative bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}
-                  >
-                    <div
-                      className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stat.gradient} rounded-t-2xl`}
-                    />
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      {stat.label}
-                    </p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                      {stat.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Marker management + attendance */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1">
-                  <MarkerManager />
-                </div>
-                <div className="lg:col-span-2">
-                  <AdminAttendanceTable
-                    records={records}
-                    isLoading={isLoadingData}
-                    pagination={pagination ?? undefined}
-                    onPageChange={handlePageChange}
-                    onExport={handleExport}
-                    isExporting={isExporting}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </ProtectedRoute>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 pb-12">
+        {isLoading ? (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-10 text-center">
+            <div className="animate-pulse space-y-4">
+              <div className="h-6 w-48 mx-auto bg-gray-200 dark:bg-gray-700 rounded" />
+              <div className="h-10 w-64 mx-auto bg-gray-200 dark:bg-gray-700 rounded" />
+            </div>
+          </div>
+        ) : showLogin ? (
+          <TeacherLoginCard teacherEmail={status?.teacherEmail ?? null} onRefresh={() => void refresh()} />
+        ) : (
+          <div className="space-y-6">
+            {/* Tabs */}
+            <div className="flex gap-1 overflow-x-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-1.5">
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`inline-flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all duration-200 whitespace-nowrap ${
+                    tab === t.key
+                      ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-600/25"
+                      : "text-gray-600 dark:text-gray-300 hover:bg-violet-50 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={t.icon} />
+                  </svg>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Content */}
+            {tab === "overview" && <AdminOverviewPanel />}
+            {tab === "courses" && <AdminCoursesPanel />}
+            {tab === "sessions" && <AdminSessionsPanel courses={courses} />}
+            {tab === "students" && <AdminStudentsPanel />}
+            {tab === "teachers" && (
+              <AdminTeachersPanel isAdmin={status?.isAdmin ?? false} />
+            )}
+            {tab === "attendance" && <AdminAttendancePanel />}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
